@@ -1,0 +1,170 @@
+################ extrair dados climáticos ##############
+library(sp)
+library(rgdal)
+library(sf)
+library(raster)
+library(dplyr)
+library(ggplot2)
+library(maptools)
+library(rgeos)
+
+
+#vamos ler os arquivos de cada variÃ¡vel
+temp_med_anual <- raster("wc2.1_2.5m_tavg_12.tif")
+plot (temp_med_anual)
+
+temp_max <- raster("wc2.1_2.5m_tmax_12.tif")
+plot (temp_max)
+
+temp_min <- raster ("wc2.1_2.5m_tmin_12.tif")
+plot (temp_min)
+
+rad <- raster ("wc2.1_2.5m_srad_12.tif")
+plot (rad)
+
+precip_an<- raster("wc2.1_2.5m_prec_12.tif")
+plot (precip_an)
+
+#criando um arquivo com todas as variaveis anteriores
+dadosbioclim <- stack(temp_med_anual, temp_max, temp_min, rad, precip_an)
+plot(dadosbioclim)
+
+############################## OK
+
+#cortando a Ã¡rea de interesse
+
+Area<-readOGR("C:/Users/Julia/Documents/analises_sisyrinchium/RDA/map.shp")
+Area<-st_read("C:/Users/Julia/Documents/analises_sisyrinchium/RDA/map2.shp")
+Area <- readOGR("map2.shp")
+'plot(Area)
+
+Area<- readOGR("wrld_simpl.shp")
+
+corte <- crop(dadosbioclim, Area)
+plot(corte)
+
+###plots para visualizacao
+brasil <- readOGR("estados_r.shp")
+
+plot(brasil)
+rs <- subset(brasil, UF=="RS")
+plot(rs)
+plot(corte$wc2.1_10m_bio_1, add=T)
+plot(Area, add=T)
+
+
+#obtendo dados de todas cÃ©lulas do mapa pastizales
+dadosclim<- mask(corte, Area)
+plot(rs)
+plot(dadosclim$wc2.1_10m_bio_1, add=T)
+plot(dadosclim$wc2.1_10m_bio_2, add=T)
+plot(dadosclim$wc2.1_10m_bio_5, add=T)
+plot(dadosclim$wc2.1_10m_bio_12, add=T)
+
+#obter valores de um raster
+dadosclim2 <- getValues(dadosclim)
+head(dadosclim2)
+nrow(dadosclim2)
+
+#obter coordenadas de todas as celulas do raster
+coords <- coordinates(Area) 
+head(coords)
+nrow(coords)
+
+resultado <- cbind(coords, dadosclim)
+head(resultado)
+nrow(resultado)
+
+#excluir NA 
+resultado <- na.omit(resultado)
+head(resultado)
+nrow(resultado)
+
+write.csv(resultado, "coord_pastizales" )
+
+###########################################################
+
+#5 organizando os dados
+
+asp<-read.csv("asparagus.csv")
+head(asp)
+
+asp <- setNames(as.data.frame(asp), c('especie', 'x', 'y'))
+asp$especie = NULL 
+head(asp)
+
+dados3 <- raster::extract (dadosbioclim, asp, method="simple")
+
+asp_clim <- cbind(asp, dados3)
+names(asp_clim)
+head(asp_clim)
+
+class(dadosbioclim)
+class(asp)
+
+asp_clim["especie"]<-c("Asparagus setaceus")
+
+matriz<- colnames(asp_clim)<- c("long", "lat","temperatura media anual", "variaÃ§Ã£o diurna", "temperatura mÃ¡xima do mÃªs mais quente", "precipitaÃ§Ã£o anual","especie")
+head(matriz)
+
+
+#6
+pontos <- read.table("sitios_RPG.txt", h=T) #abrindo meus pontos
+head(pontos)
+dim(pontos)
+
+pontos$sitio = NULL 
+
+extrair_dados <- raster::extract(dadosbioclim, pontos, method='simple') 
+head(extrair_dados)
+dim(extrair_dados)
+
+write.csv(extrair_dados, "clima_sitios.csv")
+
+var_clim <- stack(temp_med_anual, med_diur, temp_max, precip_an)
+plot(var_clim)
+
+#7
+var_bio <- dados_pres <- getData('worldclim', var='bio', res=10) 
+plot(var_bio)
+
+
+extrair2 <- raster::extract(var_bio, pontos, method='simple') 
+head(extrair2)
+dim(extrair2)
+
+write.csv(extrair_dados, "clima_sitios2.csv")
+
+var_bio <- stack(temp_med_anual)#vou usar sÃ³ a bio1 
+plot(var_bio)
+
+
+#8 
+#usar os mesmos dados do 7 bio1
+
+extrair2 <-  #Futuro, extrai no exercÃ­cio anterior
+  
+  
+  extrair1 <- raster::extract(temp_med_anual, pontos, method='simple') 
+head(extrair1)
+dim(extrair1)  #extrai aqui a atual
+
+futuro <- extrair2 
+atual <- extrair1
+
+futuro <- as.data.frame(futuro)
+atual <- as.data.frame(atual)
+
+plot(futuro$futuro, Area$Area)
+plot(futuro$futuro, Area$Area,
+     xlab = "Area",
+     ylab = "Temperatura mÃ©dia",
+     main = "Temperatura mÃ©dia futuro")
+
+plot(atual$atual, Area$Area)
+plot(atual$atual, Area$Area,
+     xlab = "Area",
+     ylab = "Temperatura mÃ©dia",
+     main = "Temperatura mÃ©dia atual")
+#nÃ£o mudou nada a temperatura mas talvez eu tenha extraÃ­do duas vezes a mesma variÃ¡vel e tempo
+
